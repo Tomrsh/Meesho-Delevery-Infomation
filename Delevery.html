@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Driver Logistics Dashboard</title>
+    <title>Driver Logistics Dashboard</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
@@ -44,7 +44,6 @@
         .btn-del { background: #dc2626; }
         .btn-del:disabled { background: #475569; opacity: 0.5; cursor: not-allowed; }
 
-        /* Marker Custom Styling */
         .driver-marker { background: #38bdf8; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 10px #38bdf8; }
         .customer-marker { background: #ef4444; border: 2px solid #fff; border-radius: 50%; }
         .nearest-marker { background: #10b981; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 8px #10b981; }
@@ -53,8 +52,8 @@
 <body>
 
     <header>
-        <h1><i class="fa-solid fa-truck-ramp-box"></i> Smart Delivery Logistics</h1>
-        <div style="font-size: 0.85rem; color:#94a3b8;">GPS: <span id="driver-gps" style="color:#10b981">🟢 Live</span></div>
+        <h1><i class="fa-solid fa-truck-ramp-box"></i> Meesho Delivery Dashboard</h1>
+        <div style="font-size: 0.85rem; color:#94a3b8;">GPS: <span id="driver-gps" style="color:#10b981">🟢 Active</span></div>
     </header>
 
     <div id="map"></div>
@@ -62,11 +61,11 @@
     <div class="panel-container">
         <div class="info-row">
             <div class="alert-box">
-                Target Customer
-                <span id="nearest-name">Fetching...</span>
+                Customer Name
+                <span id="nearest-name">Waiting for data...</span>
             </div>
             <div class="alert-box" style="border-left-color: #10b981;">
-                Distance / Route
+                Distance to Location
                 <span id="nearest-dist">0.00 km</span>
             </div>
         </div>
@@ -74,7 +73,7 @@
         <div class="btn-group">
             <button class="btn btn-optimize" onclick="optimizeEntireRoute()"><i class="fa-solid fa-route"></i> Optimize Route</button>
             <button class="btn btn-nav" id="nav-btn" onclick="openNearestInGoogleMaps()" disabled><i class="fa-solid fa-location-arrow"></i> Maps</button>
-            <button class="btn btn-del" id="del-btn" onclick="completeDelivery()" disabled><i class="fa-solid fa-check"></i> Drop</button>
+            <button class="btn btn-del" id="del-btn" onclick="completeDelivery()" disabled><i class="fa-solid fa-check"></i> Delivered</button>
         </div>
     </div>
 
@@ -83,7 +82,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
     <script>
-        // आपका सेम फ़ायरबेस कॉन्फिग
         const firebaseConfig = {
             apiKey: "AIzaSyAb7V8Xxg5rUYi8UKChEd3rR5dglJ6bLhU",
             authDomain: "t2-storage-4e5ca.firebaseapp.com",
@@ -104,12 +102,10 @@
         let targetCustomer = null;
         let isFirstLoad = true;
 
-        // 1. ड्राइवर लाइव लोकेशन और फ़ायरबेस सिंक
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition((pos) => {
                 driverCoords = [pos.coords.latitude, pos.coords.longitude];
                 
-                // फ़ायरबेस पर ड्राइवर की लाइव लोकेशन डालना ताकि कस्टमर ट्रैक कर सके
                 database.ref('driver_location').set({
                     lat: pos.coords.latitude,
                     lng: pos.coords.longitude,
@@ -124,14 +120,12 @@
                     driverMarker.setLatLng(driverCoords);
                 }
                 processLogistics();
-            }, (err) => console.error(err), { enableHighAccuracy: true, maximumAge: 0 });
+            }, (err) => console.error(err), { enableHighAccuracy: true });
         }
 
-        // 2. फ़ायरबेस से कस्टमर डेटा सिंक करना
         database.ref('active_deliveries').on('value', (snapshot) => {
             activeCustomersData = snapshot.val() || {};
             
-            // पुराने मार्कर्स हटाना जो डेटाबेस में नहीं हैं
             for (let id in customerMarkers) {
                 if (!activeCustomersData[id]) {
                     map.removeLayer(customerMarkers[id]);
@@ -141,7 +135,6 @@
             processLogistics();
         });
 
-        // 3. मुख्य लॉजिस्टिक्स, जियोफेंसिंग और कैलकुलेशन इंजन
         function processLogistics() {
             if (!driverCoords || !activeCustomersData) return;
 
@@ -154,15 +147,13 @@
 
                 const from = L.latLng(driverCoords);
                 const to = L.latLng(cCoords);
-                const dist = from.distanceTo(to); // मीटर में
+                const dist = from.distanceTo(to); 
 
-                // अगर कस्टमर सबसे पास है
                 if (dist < minDistance) {
                     minDistance = dist;
                     closestUser = { id: key, name: cData.customerName, lat: cData.lat, lng: cData.lng, distMeters: dist };
                 }
 
-                // मैप पर मार्कर लगाना/अपडेट करना
                 if (!customerMarkers[key]) {
                     const cIcon = L.divIcon({ className: 'customer-marker', iconSize: [12, 12] });
                     customerMarkers[key] = L.marker(cCoords, { icon: cIcon }).addTo(map);
@@ -172,22 +163,22 @@
                 customerMarkers[key].bindPopup(`<b>${cData.customerName}</b><br>${(dist/1000).toFixed(2)} km away`);
             }
 
-            // नियरेस्ट कस्टमर का UI और जियोफेंस चेक अपडेट करना
             if (closestUser) {
                 targetCustomer = closestUser;
                 document.getElementById('nearest-name').innerText = closestUser.name;
                 document.getElementById('nearest-dist').innerText = (closestUser.distMeters / 1000).toFixed(2) + " km";
                 document.getElementById('nav-btn').disabled = false;
 
-                // सभी मार्कर्स को नार्मल करके सिर्फ पास वाले को हरा (Nearest) रंग देना
                 for (let id in customerMarkers) {
-                    customerMarkers[id]._icon.className = (id === closestUser.id) ? 'nearest-marker' : 'customer-marker';
+                    if(customerMarkers[id]._icon) {
+                        customerMarkers[id]._icon.className = (id === closestUser.id) ? 'nearest-marker' : 'customer-marker';
+                    }
                 }
 
-                // 🔴 स्मार्ट जियोफेंस लॉक: केवल 300 मीटर के अंदर आने पर ही डिलीट बटन काम करेगा
+                // 300 मीटर का स्मार्ट जियोफेंस लॉक
                 if (closestUser.distMeters <= 300) {
                     document.getElementById('del-btn').disabled = false;
-                    document.getElementById('del-btn').innerHTML = `<i class="fa-solid fa-unlock"></i> Complete`;
+                    document.getElementById('del-btn').innerHTML = `<i class="fa-solid fa-unlock"></i> Delivered`;
                     document.getElementById('del-btn').style.background = "#10b981";
                 } else {
                     document.getElementById('del-btn').disabled = true;
@@ -195,8 +186,7 @@
                     document.getElementById('del-btn').style.background = "#475569";
                 }
             } else {
-                // कोई एक्टिव कस्टमर न होने पर रीसेट
-                document.getElementById('nearest-name').innerText = "No Pending Orders";
+                document.getElementById('nearest-name').innerText = "No Active Deliveries";
                 document.getElementById('nearest-dist').innerText = "0.00 km";
                 document.getElementById('nav-btn').disabled = true;
                 document.getElementById('del-btn').disabled = true;
@@ -204,10 +194,9 @@
             }
         }
 
-        // 4. पेट्रोल बचाने के लिए रूट ऑप्टिमाइज़ेशन (एक छोर से दूसरे छोर)
         function optimizeEntireRoute() {
             if (!driverCoords || Object.keys(activeCustomersData).length === 0) {
-                alert("ऑप्टिमाइज़ करने के लिए कोई कस्टमर लोकेशन मौजूद नहीं है!");
+                alert("कोई डेटा उपलब्ध नहीं है!");
                 return;
             }
 
@@ -215,7 +204,6 @@
             let unvisited = { ...activeCustomersData };
             let optimizedOrder = [];
 
-            // Nearest Neighbor Algorithm (शॉर्टेस्ट पाथ सीक्वेंसिंग)
             while (Object.keys(unvisited).length > 0) {
                 let closestKey = null;
                 let maxNear = Infinity;
@@ -233,15 +221,14 @@
                 delete unvisited[closestKey];
             }
 
-            alert("⚡ पेट्रोल बचाने के लिए बेस्ट रूट तय कर दिया गया है!\n\nक्रम: " + optimizedOrder.join(" ➔ "));
+            alert("⛽ शॉर्टेस्ट रूट सीक्वेंस तैयार है!\n\nइस क्रम में डिलीवरी करें: " + optimizedOrder.join(" ➔ "));
         }
 
-        // 5. डिलीवरी पूरी होने पर हटाना
         function completeDelivery() {
             if (targetCustomer) {
-                if (confirm(`क्या ${targetCustomer.name} का पार्सल डिलीवर हो गया है?`)) {
+                if (confirm(`क्या आपने ${targetCustomer.name} को पार्सल दे दिया है?`)) {
                     database.ref('active_deliveries/' + targetCustomer.id).remove()
-                    .then(() => alert("डिलीवरी कम्पलीट! लिस्ट से हटा दिया गया है।"))
+                    .then(() => alert("सफलतापूर्वक हटाया गया! अगला नजदीकी पार्सल लोड हो रहा है।"))
                     .catch(err => console.log(err));
                 }
             }
