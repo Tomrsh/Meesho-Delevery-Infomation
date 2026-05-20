@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Driver Logistics Dashboard</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+        body { background: #0f172a; color: #f8fafc; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        header { background: #1e293b; border-bottom: 1px solid #334155; padding: 15px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; }
+        header h1 { font-size: 1.1rem; font-weight: 600; color: #38bdf8; }
+        #map { flex: 1; width: 100%; z-index: 1; }
+        
+        .panel-container {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 94%;
+            max-width: 480px;
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid #475569;
+            border-radius: 16px;
+            padding: 15px;
+            z-index: 1000;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .info-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .alert-box { flex: 1; background: #334155; padding: 10px; border-radius: 10px; font-size: 0.85rem; border-left: 4px solid #38bdf8; }
+        .alert-box span { display: block; font-weight: 600; font-size: 0.95rem; color: #fff; }
+        
+        .btn-group { display: flex; gap: 8px; }
+        .btn { flex: 1; color: white; border: none; padding: 12px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: flex; justify-content: center; align-items: center; gap: 6px; transition: 0.2s; }
+        .btn-nav { background: #2563eb; }
+        .btn-nav:hover { background: #1d4ed8; }
+        .btn-optimize { background: #059669; }
+        .btn-optimize:hover { background: #047857; }
+        .btn-del { background: #dc2626; }
+        .btn-del:disabled { background: #475569; opacity: 0.5; cursor: not-allowed; }
+
+        /* Marker Custom Styling */
+        .driver-marker { background: #38bdf8; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 10px #38bdf8; }
+        .customer-marker { background: #ef4444; border: 2px solid #fff; border-radius: 50%; }
+        .nearest-marker { background: #10b981; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 8px #10b981; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1><i class="fa-solid fa-truck-ramp-box"></i> Smart Delivery Logistics</h1>
+        <div style="font-size: 0.85rem; color:#94a3b8;">GPS: <span id="driver-gps" style="color:#10b981">🟢 Live</span></div>
+    </header>
+
+    <div id="map"></div>
+
+    <div class="panel-container">
+        <div class="info-row">
+            <div class="alert-box">
+                Target Customer
+                <span id="nearest-name">Fetching...</span>
+            </div>
+            <div class="alert-box" style="border-left-color: #10b981;">
+                Distance / Route
+                <span id="nearest-dist">0.00 km</span>
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn btn-optimize" onclick="optimizeEntireRoute()"><i class="fa-solid fa-route"></i> Optimize Route</button>
+            <button class="btn btn-nav" id="nav-btn" onclick="openNearestInGoogleMaps()" disabled><i class="fa-solid fa-location-arrow"></i> Maps</button>
+            <button class="btn btn-del" id="del-btn" onclick="completeDelivery()" disabled><i class="fa-solid fa-check"></i> Drop</button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
+    <script>
+        // आपका सेम फ़ायरबेस कॉन्फिग
+        const firebaseConfig = {
+            apiKey: "AIzaSyAb7V8Xxg5rUYi8UKChEd3rR5dglJ6bLhU",
+            authDomain: "t2-storage-4e5ca.firebaseapp.com",
+            databaseURL: "https://t2-storage-4e5ca-default-rtdb.firebaseio.com",
+            projectId: "t2-storage-4e5ca"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        const map = L.map('map', { zoomControl: false }).setView([19.0750, 81.9964], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        let driverCoords = null;
+        let driverMarker = null;
+        let customerMarkers = {};
+        let activeCustomersData = {};
+        let targetCustomer = null;
+        let isFirstLoad = true;
+
+        // 1. ड्राइवर लाइव लोकेशन और फ़ायरबेस सिंक
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition((pos) => {
+                driverCoords = [pos.coords.latitude, pos.coords.longitude];
+                
+                // फ़ायरबेस पर ड्राइवर की लाइव लोकेशन डालना ताकि कस्टमर ट्रैक कर सके
+                database.ref('driver_location').set({
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                    timestamp: new Date().getTime()
+                });
+
+                if (!driverMarker) {
+                    const dIcon = L.divIcon({ className: 'driver-marker', iconSize: [16, 16] });
+                    driverMarker = L.marker(driverCoords, { icon: dIcon }).addTo(map).bindPopup("You are here");
+                    if(isFirstLoad) { map.setView(driverCoords, 15); isFirstLoad = false; }
+                } else {
+                    driverMarker.setLatLng(driverCoords);
+                }
+                processLogistics();
+            }, (err) => console.error(err), { enableHighAccuracy: true, maximumAge: 0 });
+        }
+
+        // 2. फ़ायरबेस से कस्टमर डेटा सिंक करना
+        database.ref('active_deliveries').on('value', (snapshot) => {
+            activeCustomersData = snapshot.val() || {};
+            
+            // पुराने मार्कर्स हटाना जो डेटाबेस में नहीं हैं
+            for (let id in customerMarkers) {
+                if (!activeCustomersData[id]) {
+                    map.removeLayer(customerMarkers[id]);
+                    delete customerMarkers[id];
+                }
+            }
+            processLogistics();
+        });
+
+        // 3. मुख्य लॉजिस्टिक्स, जियोफेंसिंग और कैलकुलेशन इंजन
+        function processLogistics() {
+            if (!driverCoords || !activeCustomersData) return;
+
+            let minDistance = Infinity;
+            let closestUser = null;
+
+            for (let key in activeCustomersData) {
+                const cData = activeCustomersData[key];
+                const cCoords = [cData.lat, cData.lng];
+
+                const from = L.latLng(driverCoords);
+                const to = L.latLng(cCoords);
+                const dist = from.distanceTo(to); // मीटर में
+
+                // अगर कस्टमर सबसे पास है
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closestUser = { id: key, name: cData.customerName, lat: cData.lat, lng: cData.lng, distMeters: dist };
+                }
+
+                // मैप पर मार्कर लगाना/अपडेट करना
+                if (!customerMarkers[key]) {
+                    const cIcon = L.divIcon({ className: 'customer-marker', iconSize: [12, 12] });
+                    customerMarkers[key] = L.marker(cCoords, { icon: cIcon }).addTo(map);
+                } else {
+                    customerMarkers[key].setLatLng(cCoords);
+                }
+                customerMarkers[key].bindPopup(`<b>${cData.customerName}</b><br>${(dist/1000).toFixed(2)} km away`);
+            }
+
+            // नियरेस्ट कस्टमर का UI और जियोफेंस चेक अपडेट करना
+            if (closestUser) {
+                targetCustomer = closestUser;
+                document.getElementById('nearest-name').innerText = closestUser.name;
+                document.getElementById('nearest-dist').innerText = (closestUser.distMeters / 1000).toFixed(2) + " km";
+                document.getElementById('nav-btn').disabled = false;
+
+                // सभी मार्कर्स को नार्मल करके सिर्फ पास वाले को हरा (Nearest) रंग देना
+                for (let id in customerMarkers) {
+                    customerMarkers[id]._icon.className = (id === closestUser.id) ? 'nearest-marker' : 'customer-marker';
+                }
+
+                // 🔴 स्मार्ट जियोफेंस लॉक: केवल 300 मीटर के अंदर आने पर ही डिलीट बटन काम करेगा
+                if (closestUser.distMeters <= 300) {
+                    document.getElementById('del-btn').disabled = false;
+                    document.getElementById('del-btn').innerHTML = `<i class="fa-solid fa-unlock"></i> Complete`;
+                    document.getElementById('del-btn').style.background = "#10b981";
+                } else {
+                    document.getElementById('del-btn').disabled = true;
+                    document.getElementById('del-btn').innerHTML = `<i class="fa-solid fa-lock"></i> Locked`;
+                    document.getElementById('del-btn').style.background = "#475569";
+                }
+            } else {
+                // कोई एक्टिव कस्टमर न होने पर रीसेट
+                document.getElementById('nearest-name').innerText = "No Pending Orders";
+                document.getElementById('nearest-dist').innerText = "0.00 km";
+                document.getElementById('nav-btn').disabled = true;
+                document.getElementById('del-btn').disabled = true;
+                targetCustomer = null;
+            }
+        }
+
+        // 4. पेट्रोल बचाने के लिए रूट ऑप्टिमाइज़ेशन (एक छोर से दूसरे छोर)
+        function optimizeEntireRoute() {
+            if (!driverCoords || Object.keys(activeCustomersData).length === 0) {
+                alert("ऑप्टिमाइज़ करने के लिए कोई कस्टमर लोकेशन मौजूद नहीं है!");
+                return;
+            }
+
+            let currentPoint = L.latLng(driverCoords);
+            let unvisited = { ...activeCustomersData };
+            let optimizedOrder = [];
+
+            // Nearest Neighbor Algorithm (शॉर्टेस्ट पाथ सीक्वेंसिंग)
+            while (Object.keys(unvisited).length > 0) {
+                let closestKey = null;
+                let maxNear = Infinity;
+
+                for (let key in unvisited) {
+                    let d = currentPoint.distanceTo(L.latLng(unvisited[key].lat, unvisited[key].lng));
+                    if (d < maxNear) {
+                        maxNear = d;
+                        closestKey = key;
+                    }
+                }
+
+                optimizedOrder.push(unvisited[closestKey].customerName);
+                currentPoint = L.latLng(unvisited[closestKey].lat, unvisited[closestKey].lng);
+                delete unvisited[closestKey];
+            }
+
+            alert("⚡ पेट्रोल बचाने के लिए बेस्ट रूट तय कर दिया गया है!\n\nक्रम: " + optimizedOrder.join(" ➔ "));
+        }
+
+        // 5. डिलीवरी पूरी होने पर हटाना
+        function completeDelivery() {
+            if (targetCustomer) {
+                if (confirm(`क्या ${targetCustomer.name} का पार्सल डिलीवर हो गया है?`)) {
+                    database.ref('active_deliveries/' + targetCustomer.id).remove()
+                    .then(() => alert("डिलीवरी कम्पलीट! लिस्ट से हटा दिया गया है।"))
+                    .catch(err => console.log(err));
+                }
+            }
+        }
+
+        function openNearestInGoogleMaps() {
+            if (targetCustomer) {
+                window.open(`https://www.google.com/maps/dir/?api=1&destination=${targetCustomer.lat},${targetCustomer.lng}&travelmode=driving`, '_blank');
+            }
+        }
+    </script>
+</body>
+</html>
