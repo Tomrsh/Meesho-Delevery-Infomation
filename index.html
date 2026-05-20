@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Track Your Order</title>
+    <title>Meesho Delivery - Confirm Location</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -16,15 +16,16 @@
 <body class="bg-slate-900 text-slate-100 flex flex-col items-center justify-center min-h-screen p-4">
 
     <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full max-w-md shadow-2xl text-center">
-        <div class="text-sky-400 text-5xl mb-3">
-            <i class="fa-solid fa-truck-fast"></i>
+        <div class="text-pink-500 text-5xl mb-3">
+            <i class="fa-solid fa-bag-shopping"></i>
         </div>
-        <h2 class="text-xl font-bold mb-1" id="welcome-text">Order Delivery</h2>
+        <!-- यहाँ कस्टमर का असली नाम शो होगा -->
+        <h2 class="text-xl font-bold mb-1 text-pink-400" id="welcome-text">Meesho Delivery</h2>
         <p class="text-xs text-slate-400 mb-4">
-            नमस्ते! आपका डिलीवरी पार्टनर आपके एरिया में है। सही पते पर फ़ास्ट डिलीवरी के लिए कृपया नीचे बटन दबाकर अपनी लोकेशन कन्फर्म करें।
+            नमस्ते! आपका मीशो डिलीवरी पार्टनर आपके एरिया में पहुँच चुका है। आपके पार्सल को सही पते पर सुरक्षित पहुँचाने के लिए कृपया नीचे बटन पर क्लिक करके अपनी लोकेशन कन्फर्म करें।
         </p>
 
-        <button id="share-btn" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-4 rounded-xl transition duration-200 flex items-center justify-center gap-2 shadow-md">
+        <button id="share-btn" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-semibold py-3 px-4 rounded-xl transition duration-200 flex items-center justify-center gap-2 shadow-md">
             <i class="fa-solid fa-location-crosshairs"></i> Confirm & Share Location
         </button>
 
@@ -33,10 +34,10 @@
         <!-- लाइव ट्रैकिंग डिस्प्ले कार्ड -->
         <div id="tracking-info" class="mt-4 p-3 bg-slate-900 rounded-xl border border-slate-700 text-left hidden">
             <div class="flex justify-between items-center text-sm mb-1">
-                <span class="text-slate-400"><i class="fa-solid fa-user-ninja text-sky-400"></i> Delivery Boy:</span>
+                <span class="text-slate-400"><i class="fa-solid fa-truck text-pink-400"></i> Delivery Boy:</span>
                 <span id="driver-status" class="font-bold text-green-400">On the way</span>
             </div>
-            <div class="text-xs text-slate-400">दूरभाष / दूरी: <span id="distance-display" class="text-white font-bold">Calculating...</span></div>
+            <div class="text-xs text-slate-400">आपसे दूरी: <span id="distance-display" class="text-white font-bold">Calculating...</span></div>
         </div>
 
         <div id="customer-map"></div>
@@ -57,10 +58,16 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
+        // URL से पैरामीटर निकालना (e.g., ?customer=Ramesh_Kumar)
         const urlParams = new URLSearchParams(window.location.search);
-        const customerId = urlParams.get('customer') || "Customer_" + Math.floor(Math.random() * 900 + 100);
+        const rawCustomerName = urlParams.get('customer');
         
-        document.getElementById('welcome-text').innerText = "Hello, " + customerId;
+        // अगर URL में नाम नहीं है तो एक रैंडम ID जनरेट होगी, नहीं तो नाम के अंडरस्कोर/स्पेस ठीक होंगे
+        const customerDisplayName = rawCustomerName ? decodeURIComponent(rawCustomerName).replace(/_/g, ' ') : "Valued Customer";
+        const databaseKey = rawCustomerName ? rawCustomerName.replace(/[^a-zA-Z0-0_]/g, "") : "User_" + Math.floor(Math.random() * 900 + 100);
+        
+        // स्क्रीन पर नाम सेट करना
+        document.getElementById('welcome-text').innerText = "Hello, " + customerDisplayName;
 
         let map = null;
         let customerMarker = null;
@@ -75,25 +82,24 @@
                 return;
             }
 
-            statusMsg.innerText = "GPS से कनेक्ट हो रहा है...";
+            statusMsg.innerText = "GPS सिग्नल से कनेक्ट हो रहा है...";
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     const { latitude, longitude } = position.coords;
                     customerCoords = [latitude, longitude];
 
-                    // Firebase में अपनी लोकेशन सेंड करना
-                    database.ref('active_deliveries/' + customerId).set({
-                        customerName: customerId,
+                    // Firebase में नाम और लोकेशन दोनों भेजना
+                    database.ref('active_deliveries/' + databaseKey).set({
+                        customerName: customerDisplayName, // डैशबोर्ड पर दिखने वाला साफ़ नाम
                         lat: latitude,
                         lng: longitude,
                         time: new Date().toLocaleTimeString()
                     }).then(() => {
-                        statusMsg.innerText = "✔ लोकेशन कन्फर्म हो गई! आप नीचे लाइव ट्रैक देख सकते हैं।";
+                        statusMsg.innerText = "✔ लोकेशन सफलतापूर्वक कन्फर्म हो गई! नीचे लाइव ट्रैकिंग देखें।";
                         statusMsg.className = "mt-3 text-xs font-medium text-green-400";
                         document.getElementById('share-btn').style.display = 'none';
                         
-                        // मैप सेटअप करना और ड्राइवर को ट्रैक करना शुरू करना
                         initCustomerMap(latitude, longitude);
                         startTrackingDriver();
                     }).catch(() => {
@@ -101,7 +107,7 @@
                     });
                 },
                 (error) => {
-                    statusMsg.innerText = "कृपया लोकेशन सेटिंग को 'Allow' करें।";
+                    statusMsg.innerText = "कृपया सेटिंग में जाकर लोकेशन 'Allow' करें।";
                 },
                 { enableHighAccuracy: true }
             );
@@ -115,10 +121,9 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
             const cIcon = L.divIcon({ className: 'user-live-icon', iconSize: [12, 12] });
-            customerMarker = L.marker([lat, lng], { icon: cIcon }).addTo(map).bindPopup("Your Delivery Address").openPopup();
+            customerMarker = L.marker([lat, lng], { icon: cIcon }).addTo(map).bindPopup("Your Delivery Location").openPopup();
         }
 
-        // ड्राइवर की लाइव लोकेशन Firebase से सुनना और दूरी नापना
         function startTrackingDriver() {
             database.ref('driver_location').on('value', (snapshot) => {
                 const driverData = snapshot.val();
@@ -126,24 +131,21 @@
 
                 const dCoords = [driverData.lat, driverData.lng];
 
-                // ड्राइवर का मार्कर अपडेट या क्रिएट करना
                 if (!driverMarker) {
                     const dIcon = L.divIcon({ className: 'driver-live-icon', iconSize: [14, 14] });
-                    driverMarker = L.marker(dCoords, { icon: dIcon }).addTo(map).bindPopup("Delivery Partner").openPopup();
+                    driverMarker = L.marker(dCoords, { icon: dIcon }).addTo(map).bindPopup("Meesho Delivery Partner").openPopup();
                 } else {
                     driverMarker.setLatLng(dCoords);
                 }
 
-                // दोनों के बीच की हवाई दूरी कैलकुलेट करना
                 const from = L.latLng(customerCoords);
                 const to = L.latLng(dCoords);
                 const distanceKM = (from.distanceTo(to) / 1000).toFixed(2);
 
-                document.getElementById('distance-display').innerText = distanceKM + " KM दूर है";
+                document.getElementById('distance-display').innerText = distanceKM + " KM दूर हैं";
 
-                // मैप का व्यू दोनों को दिखाने के लिए फिट करना
                 const group = new L.featureGroup([customerMarker, driverMarker]);
-                map.fitBounds(group.pad(0.2));
+                map.fitBounds(group.pad(0.3));
             });
         }
     </script>
