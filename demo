@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E2EE Secure Chat Room</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background-color: #121212; color: #e0e0e0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .container { width: 100%; max-width: 600px; background: #1e1e1e; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); overflow: hidden; padding: 20px; box-sizing: border-box; }
+        input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 6px; border: 1px solid #333; background: #2a2a2a; color: white; box-sizing: border-box; }
+        button { background-color: #00b4d8; color: #000; font-weight: bold; cursor: pointer; border: none; }
+        button:hover { background-color: #0096c7; }
+        #chatSection { display: none; flex-direction: column; height: 500px; }
+        #chatWindow { flex-grow: 1; border: 1px solid #333; background: #151515; padding: 15px; overflow-y: auto; border-radius: 6px; margin-bottom: 10px; }
+        .msg { margin: 8px 0; padding: 10px; border-radius: 8px; max-width: 80%; word-break: break-all; }
+        .msg.me { background: #0077b6; align-self: flex-end; margin-left: auto; color: white; }
+        .msg.other { background: #2d2d2d; align-self: flex-start; }
+        .msg.system { background: #444; color: #aaa; text-align: center; margin: 5px auto; font-size: 12px; max-width: 100%; }
+        .sender-name { font-size: 11px; color: #00b4d8; margin-bottom: 3px; font-weight: bold; }
+        .input-group { display: flex; gap: 8px; }
+        .input-group input { flex-grow: 1; }
+        .input-group button { width: auto; padding: 0 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="loginSection">
+        <h2>🔒 Join Secure E2EE Chat Room</h2>
+        <input type="text" id="username" placeholder="Enter Your Name..." required>
+        <input type="text" id="roomID" placeholder="Enter Room ID (e.g. room123)..." required>
+        <input type="password" id="secretKey" placeholder="Set Room Secret Password (E2EE Key)..." required>
+        <button onclick="joinRoom()">Join Chat Room</button>
+    </div>
+
+    <div id="chatSection">
+        <h3 id="roomHeader">Room: None</h3>
+        <div id="chatWindow"></div>
+        
+        <div class="input-group">
+            <input type="text" id="msgInput" placeholder="Type a secure message...">
+            <button onclick="sendText()">Send</button>
+        </div>
+        
+        <div style="margin-top: 10px; display: flex; gap: 10px; align-items: center;">
+            <input type="file" id="fileInput" style="margin: 0; padding: 5px;">
+            <button onclick="sendFile()" style="margin: 0; width: auto; padding: 8px 15px;">Share File</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const socket = io('https://chat-api-zeta-ecru.vercel.app/'); // Apne backend ka URL dalein
+    let currentRoom = '';
+    let myName = '';
+    let encryptionKey = '';
+
+    const chatWindow = document.getElementById('chatWindow');
+
+    function appendMessage(text, type, sender = 'System') {
+        const msgDiv = document.createElement('div');
+        if (sender === 'System') {
+            msgDiv.className = 'msg system';
+            msgDiv.innerText = text;
+        } else {
+            msgDiv.className = `msg ${sender === myName ? 'me' : 'other'}`;
+            const nameDiv = sender === myName ? '' : `<div class="sender-name">${sender}</div>`;
+            msgDiv.innerHTML = `${nameDiv}${text}`;
+        }
+        chatWindow.appendChild(msgDiv);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    // 1. Join Room Logic
+    function joinRoom() {
+        myName = document.getElementById('username').value.trim();
+        currentRoom = document.getElementById('roomID').value.trim();
+        encryptionKey = document.getElementById('secretKey').value.trim();
+
+        if (!myName || !currentRoom || !encryptionKey) return alert('All fields are required!');
+
+        socket.emit('join_room', { username: myName, room: currentRoom });
+
+        document.getElementById('loginSection').style.display = 'none';
+        document.getElementById('chatSection').style.display = 'flex';
+        document.getElementById('roomHeader').innerText = `🔒 Room: ${currentRoom} (As ${myName})`;
+        
+        appendMessage(`You joined the room securely.`, 'system');
+    }
+
+    // 2. Send Text Message (E2EE)
+    function sendText() {
+        const txt = document.getElementById('msgInput').value.trim();
+        if (!txt) return;
+
+        // Message ko encrypt karein
+        const encryptedMsg = CryptoJS.AES.encrypt(txt, encryptionKey).toString();
+
+        socket.emit('send_secure_payload', {
+            room: currentRoom,
+            sender: myName,
+            type: 'text',
+            data: encryptedMsg
+        });
+
+        appendMessage(txt, 'text', myName); // Apne screen par direct plain text dikhayein
+        document.getElementById('msgInput').value = '';
+    }
+
+    // 3. Send File (E2EE)
+    function sendFile() {
+        const file = document.getElementById('fileInput').files[0];
+        if (!file) return alert('Select a file first!');
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64Data = e.target.result;
+            
+            // File data ko encrypt karein
+            const encryptedFile = CryptoJS.AES.encrypt(base64Data, encryptionKey).toString();
+
+            socket.emit('send_secure_payload', {
+                room: currentRoom,
+                sender: myName,
+                type: 'file',
+                fileName: file.name,
+                data: encryptedFile
+            });
+
+            appendMessage(`📄 Shared File: ${file.name}`, 'file', myName);
+            document.getElementById('fileInput').value = '';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // --- RECEIVER HANDLERS ---
+    
+    // System message listener
+    socket.on('system_message', (data) => {
+        appendMessage(data.text, 'system');
+    });
+
+    // Secure payload (msg/file) listener
+    socket.on('receive_secure_payload', (payload) => {
+        try {
+            // Decrypt karne ki koshish karein
+            const decryptedBytes = CryptoJS.AES.decrypt(payload.data, encryptionKey);
+            const decryptedData = decryptedBytes.toString(CryptoJS.enc.Utf8);
+
+            if (!decryptedData) throw new Error("Wrong Key");
+
+            if (payload.type === 'text') {
+                appendMessage(decryptedData, 'text', payload.sender);
+            } else if (payload.type === 'file') {
+                const downloadLink = `<br><a href="${decryptedData}" download="Secure_${payload.fileName}" style="color: #00b4d8; font-weight:bold;">⬇️ Download ${payload.fileName}</a>`;
+                appendMessage(`📄 Received File: ${payload.fileName} ${downloadLink}`, 'file', payload.sender);
+            }
+        } catch (error) {
+            appendMessage(`[Encrypted Message From ${payload.sender} - Decryption Failed (Wrong Secret Key)]`, 'system');
+        }
+    });
+</script>
+
+</body>
+</html>
