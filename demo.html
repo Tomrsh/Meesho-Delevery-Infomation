@@ -2,161 +2,315 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>E2EE WhatsApp Killer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexChat - Secure E2EE</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
-        /* WhatsApp Desktop Style Layout */
-        body { margin: 0; font-family: 'Segoe UI', Arial; display: flex; height: 100vh; background: #111b21; color: #e9edef; }
-        .sidebar { width: 30%; background: #202c33; border-right: 1px solid #2f3e46; display: flex; flex-direction: column; }
-        .chat-area { width: 70%; display: flex; flex-direction: column; background: #0b141a; }
+        /* Base Styling */
+        :root { --bg-dark: #0f172a; --bg-panel: #1e293b; --primary: #38bdf8; --text-light: #f8fafc; --text-muted: #94a3b8; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-dark); color: var(--text-light); height: 100vh; overflow: hidden; display: flex; }
         
-        .header { background: #202c33; padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2f3e46;}
-        .search-bar { padding: 10px; background: #202c33; }
-        .search-bar input { width: 100%; padding: 8px; border-radius: 8px; border: none; background: #2a3942; color: white; box-sizing: border-box;}
+        /* --- LOGIN SCREEN --- */
+        #login-screen { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); position: absolute; z-index: 100; }
+        .login-box { background: var(--bg-panel); padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 350px; text-align: center; }
+        .login-box h2 { margin-top: 0; color: var(--primary); }
+        .login-box input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
+        .login-box button { width: 100%; padding: 12px; background: var(--primary); color: #0f172a; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 15px; transition: 0.3s; }
+        .login-box button:hover { background: #0ea5e9; }
+
+        /* --- APP LAYOUT (Hidden by default) --- */
+        #app-layout { display: none; width: 100%; height: 100%; }
+
+        /* SIDEBAR (Chat List) */
+        .sidebar { width: 320px; background: var(--bg-panel); border-right: 1px solid #334155; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 15px 20px; background: #0f172a; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+        .sidebar-header button { background: transparent; color: #ef4444; border: 1px solid #ef4444; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+        .search-container { padding: 10px 15px; }
+        .search-container input { width: 100%; padding: 10px; border-radius: 20px; border: none; background: #334155; color: white; box-sizing: border-box; outline: none; padding-left: 15px; }
         
         .chat-list { flex-grow: 1; overflow-y: auto; }
-        .chat-item { padding: 15px; border-bottom: 1px solid #2f3e46; cursor: pointer; display: flex; align-items: center; }
-        .chat-item:hover { background: #2a3942; }
+        .chat-item { padding: 15px; border-bottom: 1px solid #334155; display: flex; align-items: center; cursor: pointer; transition: 0.2s; }
+        .chat-item:hover { background: #334155; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--primary); display: flex; justify-content: center; align-items: center; color: #0f172a; font-weight: bold; margin-right: 15px; }
         
-        .messages { flex-grow: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
-        .date-separator { align-self: center; background: #182229; padding: 5px 12px; border-radius: 10px; font-size: 12px; margin: 10px 0; color: #8696a0; }
+        /* MAIN CHAT AREA */
+        .main-chat { flex-grow: 1; display: flex; flex-direction: column; background: url('https://www.transparenttextures.com/patterns/carbon-fibre.png') var(--bg-dark); }
         
-        .msg { max-width: 65%; padding: 8px 12px; border-radius: 8px; margin: 2px 0; position: relative; font-size: 14.5px; }
-        .msg.me { background: #005c4b; align-self: flex-end; border-top-right-radius: 0; }
-        .msg.other { background: #202c33; align-self: flex-start; border-top-left-radius: 0; }
+        /* EMPTY STATE */
+        #empty-state { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-muted); }
         
-        .msg-info { display: flex; justify-content: flex-end; align-items: center; font-size: 11px; color: #8696a0; margin-top: 4px; gap: 4px; }
-        .tick { font-size: 12px; font-weight: bold; }
-        .tick.sent { color: #8696a0; } /* ✓ */
-        .tick.delivered { color: #8696a0; } /* ✓✓ */
-        .tick.read { color: #53bdeb; } /* 🔵 ✓✓ */
+        /* ACTIVE CHAT ROOM */
+        #active-chat { display: none; flex-direction: column; height: 100%; }
+        .chat-header { padding: 15px 20px; background: var(--bg-panel); display: flex; align-items: center; border-bottom: 1px solid #334155; }
+        .messages-area { flex-grow: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
         
-        .input-area { background: #202c33; padding: 15px; display: flex; gap: 10px; }
-        .input-area input { flex-grow: 1; padding: 12px; border-radius: 8px; border: none; background: #2a3942; color: white; }
-        .input-area button { padding: 10px 20px; border-radius: 8px; border: none; background: #00a884; color: black; font-weight: bold; cursor: pointer; }
+        .msg { max-width: 60%; padding: 10px 15px; border-radius: 12px; margin: 5px 0; font-size: 15px; word-wrap: break-word; position: relative; }
+        .msg.me { background: var(--primary); color: #0f172a; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .msg.other { background: var(--bg-panel); align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid #334155; }
+        
+        .tick { font-size: 11px; margin-left: 5px; font-weight: bold; }
+        .tick.sent { color: #64748b; }
+        .tick.read { color: #000; } /* Blue/Dark tick depending on bubble color */
+
+        .chat-input-area { padding: 15px 20px; background: var(--bg-panel); display: flex; align-items: center; gap: 10px; }
+        .chat-input-area button { background: transparent; color: var(--text-muted); border: none; font-size: 20px; cursor: pointer; transition: 0.2s; }
+        .chat-input-area button:hover { color: var(--primary); }
+        .chat-input-area input[type="text"] { flex-grow: 1; padding: 12px 20px; border-radius: 25px; border: none; background: #334155; color: white; outline: none; }
+        .send-btn { background: var(--primary) !important; color: #0f172a !important; border-radius: 50%; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="sidebar">
-        <div class="header">
-            <h3 style="margin:0;">My Profile</h3>
-            <span id="myStatus" style="color: #00a884; font-size: 12px;">🟢 Online</span>
-        </div>
-        <div class="search-bar">
-            <input type="text" id="searchUser" placeholder="🔍 Search Users by ID or Name...">
-        </div>
-        <div class="chat-list" id="chatList">
-            <div class="chat-item">
-                <div style="flex-grow: 1;">
-                    <div style="font-weight: bold;">Rahul (UID: 123)</div>
-                    <div style="font-size: 13px; color: #8696a0;">Tap to chat</div>
-                </div>
-            </div>
+    <div id="login-screen">
+        <div class="login-box">
+            <h2>NexChat Login</h2>
+            <input type="text" id="myUsername" placeholder="Enter your Name" required>
+            <input type="text" id="myUID" placeholder="Enter a Unique ID (e.g. user1)" required>
+            <input type="password" id="secretKey" placeholder="Global E2EE Key (Password)" required>
+            <button onclick="login()">Enter Secure Chat</button>
         </div>
     </div>
 
-    <div class="chat-area">
-        <div class="header">
-            <h3 style="margin:0;" id="activeChatName">Select a chat</h3>
-            <span id="typingIndicator" style="color: #00a884; font-size: 13px; display: none;">typing...</span>
-        </div>
+    <div id="app-layout">
         
-        <div class="messages" id="messagesArea">
-            <div class="date-separator">TODAY</div>
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div>
+                    <h3 style="margin:0; font-size: 16px;" id="profileName">My Profile</h3>
+                    <small style="color: var(--primary);">🟢 Online</small>
+                </div>
+                <button onclick="logout()">Logout</button>
+            </div>
+            
+            <div class="search-container">
+                <input type="text" placeholder="🔍 Search user by ID...">
             </div>
 
-        <div class="input-area">
-            <button title="Share File">📎</button>
-            <input type="text" id="msgInput" placeholder="Type a message..." oninput="handleTyping()">
-            <button onclick="sendMessage()">Send</button>
+            <div class="chat-list" id="chatList">
+                <div class="chat-item" onclick="openChat('user2', 'Rahul', 'Rahul is online')">
+                    <div class="avatar">R</div>
+                    <div>
+                        <div style="font-weight: bold;">Rahul</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Tap to chat</div>
+                    </div>
+                </div>
+                <div class="chat-item" onclick="openChat('user3', 'Aman', 'Last seen recently')">
+                    <div class="avatar">A</div>
+                    <div>
+                        <div style="font-weight: bold;">Aman</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Tap to chat</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-chat">
+            
+            <div id="empty-state">
+                <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="color: #334155; margin-bottom: 20px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <h2>Welcome to NexChat</h2>
+                <p>Select a chat from the list to start securely messaging.</p>
+            </div>
+
+            <div id="active-chat">
+                <div class="chat-header">
+                    <div class="avatar" id="activeChatAvatar">?</div>
+                    <div>
+                        <h3 style="margin:0; font-size: 16px;" id="activeChatName">User Name</h3>
+                        <small style="color: var(--text-muted);" id="activeChatStatus">Online</small>
+                    </div>
+                </div>
+
+                <div class="messages-area" id="messagesArea">
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <span style="background: #1e293b; padding: 5px 12px; border-radius: 10px; font-size: 12px; color: var(--text-muted);">🔒 Messages are End-to-End Encrypted</span>
+                    </div>
+                    </div>
+
+                <div class="chat-input-area">
+                    <button title="Attach File" onclick="document.getElementById('fileUpload').click()">📎</button>
+                    <input type="file" id="fileUpload" style="display: none;" onchange="sendFile()">
+                    <input type="text" id="msgInput" placeholder="Type a message..." onkeypress="handleEnter(event)">
+                    <button class="send-btn" onclick="sendMessage()">➤</button>
+                </div>
+            </div>
+
         </div>
     </div>
 
 <script>
-    // Note: Yahan Firebase Auth aur Realtime DB ka setup aayega.
-    const socket = io('http://localhost:3000');
-    let myUID = "user_789"; // Example (Firebase Auth se aayega)
-    let currentChatUID = "user_123"; // Jab aap chat list me kisi par click karenge
-    let sharedSecretKey = "super_secure_key_123"; // E2EE key for this specific chat
+    // System Variables
+    const socket = io('http://localhost:3000'); // Node server URL
+    let currentUser = { name: '', uid: '', key: '' };
+    let currentChat = { name: '', uid: '' };
 
-    // Connect hotey hi server ko apna UID batao
-    socket.on('connect', () => {
-        socket.emit('user_online', myUID);
-    });
+    // --- LOGIC: LOGIN & LOGOUT ---
+    function login() {
+        const name = document.getElementById('myUsername').value.trim();
+        const uid = document.getElementById('myUID').value.trim();
+        const key = document.getElementById('secretKey').value.trim();
+
+        if(!name || !uid || !key) return alert("All fields are required!");
+
+        currentUser = { name, uid, key };
+        
+        // Hide Login, Show App
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app-layout').style.display = 'flex';
+        document.getElementById('profileName').innerText = currentUser.name;
+
+        // Connect to Socket
+        socket.emit('user_online', currentUser.uid);
+        
+        // *Firebase Realtime DB Logic Here:* // fetchPendingOfflineMessagesFromFirebase(currentUser.uid);
+    }
+
+    function logout() {
+        socket.emit('user_offline', currentUser.uid);
+        currentUser = { name: '', uid: '', key: '' };
+        
+        // Reset UI
+        document.getElementById('app-layout').style.display = 'none';
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('active-chat').style.display = 'none';
+        document.getElementById('empty-state').style.display = 'flex';
+    }
+
+    // --- LOGIC: OPEN PRIVATE CHAT ---
+    function openChat(uid, name, status) {
+        currentChat = { uid, name };
+        
+        // Switch UI from Empty State to Active Chat
+        document.getElementById('empty-state').style.display = 'none';
+        document.getElementById('active-chat').style.display = 'flex';
+        
+        // Update Header
+        document.getElementById('activeChatName').innerText = name;
+        document.getElementById('activeChatStatus').innerText = status;
+        document.getElementById('activeChatAvatar').innerText = name.charAt(0).toUpperCase();
+        
+        // Clear previous messages from view
+        const msgs = document.getElementById('messagesArea');
+        msgs.innerHTML = '<div style="text-align: center; margin-bottom: 15px;"><span style="background: #1e293b; padding: 5px 12px; border-radius: 10px; font-size: 12px; color: var(--text-muted);">🔒 Messages are End-to-End Encrypted</span></div>';
+    }
+
+    // --- LOGIC: SENDING DATA (E2EE) ---
+    function handleEnter(e) { if(e.key === 'Enter') sendMessage(); }
 
     function sendMessage() {
-        const text = document.getElementById('msgInput').value;
-        if(!text) return;
+        const text = document.getElementById('msgInput').value.trim();
+        if(!text || !currentChat.uid) return;
+
+        const msgId = Date.now().toString();
         
-        const msgId = Date.now().toString(); // Unique ID for ticks
+        // 1. Encrypt Data Client-Side
+        const encryptedData = CryptoJS.AES.encrypt(text, currentUser.key).toString();
         
-        // 1. Client-Side Encryption
-        const encryptedMsg = CryptoJS.AES.encrypt(text, sharedSecretKey).toString();
-        
-        // 2. UI me render karo (Single Tick ke sath)
+        // 2. Render on my screen
         renderMessage(text, 'me', msgId, 'sent');
         
-        // 3. Node API ko bhej do (Fast Transfer)
+        // 3. Send to Node.js Server
         socket.emit('send_private_msg', {
             msgId: msgId,
-            senderId: myUID,
-            receiverId: currentChatUID,
-            encryptedData: encryptedMsg,
-            timestamp: Date.now()
+            senderId: currentUser.uid,
+            receiverId: currentChat.uid,
+            encryptedData: encryptedData,
+            type: 'text'
         });
-        
+
         document.getElementById('msgInput').value = '';
     }
 
-    // Tick Status Update Receiver
-    socket.on('msg_status_update', (data) => {
-        const { msgId, status } = data;
-        const tickElement = document.getElementById(`tick-${msgId}`);
-        if(tickElement) {
-            tickElement.className = `tick ${status}`;
-            if(status === 'sent') tickElement.innerText = '✓';
-            if(status === 'delivered') tickElement.innerText = '✓✓';
-            if(status === 'read') tickElement.innerText = '✓✓'; // CSS ise blue kar dega
-        }
-    });
+    function sendFile() {
+        const file = document.getElementById('fileUpload').files[0];
+        if(!file) return;
 
-    // Message Receive Logic
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64 = e.target.result;
+            const encryptedFile = CryptoJS.AES.encrypt(base64, currentUser.key).toString();
+            const msgId = Date.now().toString();
+
+            renderMessage(`📁 Shared File: ${file.name}`, 'me', msgId, 'sent');
+
+            socket.emit('send_private_msg', {
+                msgId: msgId,
+                senderId: currentUser.uid,
+                receiverId: currentChat.uid,
+                encryptedData: encryptedFile,
+                type: 'file',
+                fileName: file.name
+            });
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // --- LOGIC: RECEIVING DATA ---
     socket.on('receive_private_msg', (payload) => {
-        if(payload.senderId === currentChatUID) {
-            // Decrypt message
-            const bytes = CryptoJS.AES.decrypt(payload.encryptedData, sharedSecretKey);
-            const decryptedMsg = bytes.toString(CryptoJS.enc.Utf8);
-            
-            renderMessage(decryptedMsg, 'other', payload.msgId, null);
-            
-            // Server ko batao ki msg padh liya (Blue tick bhejo sender ko)
-            socket.emit('mark_as_read', { msgId: payload.msgId, senderId: payload.senderId });
+        // Sirf tabhi render karo agar main uss user ke sath chat open karke baitha hu
+        if(payload.senderId === currentChat.uid) {
+            try {
+                const bytes = CryptoJS.AES.decrypt(payload.encryptedData, currentUser.key);
+                const decryptedData = bytes.toString(CryptoJS.enc.Utf8);
+
+                if(!decryptedData) throw new Error("Key Mismatch");
+
+                if(payload.type === 'text') {
+                    renderMessage(decryptedData, 'other', payload.msgId);
+                } else if(payload.type === 'file') {
+                    const dlLink = `<br><a href="${decryptedData}" download="${payload.fileName}" style="color:var(--primary); text-decoration:none;">⬇️ Download File</a>`;
+                    renderMessage(`📁 Received File: ${payload.fileName} ${dlLink}`, 'other', payload.msgId);
+                }
+
+                // Send Blue Tick back
+                socket.emit('mark_as_read', { msgId: payload.msgId, senderId: payload.senderId });
+            } catch(e) {
+                renderMessage("⚠️ Encrypted message (Decryption Failed)", 'other', payload.msgId);
+            }
+        } else {
+            // Agar main chat me nahi hu, notification dikhao ya chat list me counter badhao
+            console.log(`New message from ${payload.senderId}`);
         }
     });
 
-    // Helper: Render Message in UI
-    function renderMessage(text, senderType, msgId, initialTick) {
+    // Update Ticks (Sent ✓ -> Read ✓✓)
+    socket.on('msg_status_update', ({ msgId, status }) => {
+        const tick = document.getElementById(`tick-${msgId}`);
+        if(tick) {
+            tick.className = `tick ${status}`;
+            if(status === 'saved_to_db') tick.innerText = '✓'; // Single tick (Offline)
+            if(status === 'read') {
+                tick.innerText = '✓✓'; // Double tick
+                tick.style.color = '#0f172a'; // Dark tick on light blue bubble
+            }
+        }
+    });
+
+    function renderMessage(text, type, msgId, initialTick = '') {
         const msgDiv = document.createElement('div');
-        msgDiv.className = `msg ${senderType}`;
+        msgDiv.className = `msg ${type}`;
         
-        let tickHTML = '';
-        if(senderType === 'me') {
-            const tickMark = initialTick === 'sent' ? '✓' : '✓✓';
-            tickHTML = `<span id="tick-${msgId}" class="tick ${initialTick}">${tickMark}</span>`;
+        let tickHtml = '';
+        if(type === 'me') {
+            tickHtml = `<span id="tick-${msgId}" class="tick ${initialTick}">✓</span>`;
         }
 
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        
         msgDiv.innerHTML = `
             ${text}
-            <div class="msg-info">
-                <span>${time}</span>
-                ${tickHTML}
+            <div style="text-align: right; font-size: 10px; opacity: 0.7; margin-top: 5px;">
+                ${time} ${tickHtml}
             </div>
         `;
-        document.getElementById('messagesArea').appendChild(msgDiv);
+        
+        const area = document.getElementById('messagesArea');
+        area.appendChild(msgDiv);
+        area.scrollTop = area.scrollHeight;
     }
 </script>
 </body>
