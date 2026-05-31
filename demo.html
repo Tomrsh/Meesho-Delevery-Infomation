@@ -3,315 +3,274 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NexChat - Secure E2EE</title>
+    <title>P2P Direct Share & Chat</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
-        /* Base Styling */
-        :root { --bg-dark: #0f172a; --bg-panel: #1e293b; --primary: #38bdf8; --text-light: #f8fafc; --text-muted: #94a3b8; }
-        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-dark); color: var(--text-light); height: 100vh; overflow: hidden; display: flex; }
-        
-        /* --- LOGIN SCREEN --- */
-        #login-screen { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); position: absolute; z-index: 100; }
-        .login-box { background: var(--bg-panel); padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 350px; text-align: center; }
-        .login-box h2 { margin-top: 0; color: var(--primary); }
-        .login-box input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
-        .login-box button { width: 100%; padding: 12px; background: var(--primary); color: #0f172a; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 15px; transition: 0.3s; }
-        .login-box button:hover { background: #0ea5e9; }
-
-        /* --- APP LAYOUT (Hidden by default) --- */
-        #app-layout { display: none; width: 100%; height: 100%; }
-
-        /* SIDEBAR (Chat List) */
-        .sidebar { width: 320px; background: var(--bg-panel); border-right: 1px solid #334155; display: flex; flex-direction: column; }
-        .sidebar-header { padding: 15px 20px; background: #0f172a; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
-        .sidebar-header button { background: transparent; color: #ef4444; border: 1px solid #ef4444; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
-        .search-container { padding: 10px 15px; }
-        .search-container input { width: 100%; padding: 10px; border-radius: 20px; border: none; background: #334155; color: white; box-sizing: border-box; outline: none; padding-left: 15px; }
-        
-        .chat-list { flex-grow: 1; overflow-y: auto; }
-        .chat-item { padding: 15px; border-bottom: 1px solid #334155; display: flex; align-items: center; cursor: pointer; transition: 0.2s; }
-        .chat-item:hover { background: #334155; }
-        .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--primary); display: flex; justify-content: center; align-items: center; color: #0f172a; font-weight: bold; margin-right: 15px; }
-        
-        /* MAIN CHAT AREA */
-        .main-chat { flex-grow: 1; display: flex; flex-direction: column; background: url('https://www.transparenttextures.com/patterns/carbon-fibre.png') var(--bg-dark); }
-        
-        /* EMPTY STATE */
-        #empty-state { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-muted); }
-        
-        /* ACTIVE CHAT ROOM */
-        #active-chat { display: none; flex-direction: column; height: 100%; }
-        .chat-header { padding: 15px 20px; background: var(--bg-panel); display: flex; align-items: center; border-bottom: 1px solid #334155; }
-        .messages-area { flex-grow: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
-        
-        .msg { max-width: 60%; padding: 10px 15px; border-radius: 12px; margin: 5px 0; font-size: 15px; word-wrap: break-word; position: relative; }
-        .msg.me { background: var(--primary); color: #0f172a; align-self: flex-end; border-bottom-right-radius: 2px; }
-        .msg.other { background: var(--bg-panel); align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid #334155; }
-        
-        .tick { font-size: 11px; margin-left: 5px; font-weight: bold; }
-        .tick.sent { color: #64748b; }
-        .tick.read { color: #000; } /* Blue/Dark tick depending on bubble color */
-
-        .chat-input-area { padding: 15px 20px; background: var(--bg-panel); display: flex; align-items: center; gap: 10px; }
-        .chat-input-area button { background: transparent; color: var(--text-muted); border: none; font-size: 20px; cursor: pointer; transition: 0.2s; }
-        .chat-input-area button:hover { color: var(--primary); }
-        .chat-input-area input[type="text"] { flex-grow: 1; padding: 12px 20px; border-radius: 25px; border: none; background: #334155; color: white; outline: none; }
-        .send-btn { background: var(--primary) !important; color: #0f172a !important; border-radius: 50%; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; }
-
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        body { font-family: 'Segoe UI', sans-serif; background: #111; color: #eee; margin: 0; padding: 20px; display: flex; gap: 20px; }
+        .panel { background: #222; padding: 20px; border-radius: 10px; flex: 1; border: 1px solid #444; }
+        input, button { padding: 10px; margin-top: 10px; width: 100%; border-radius: 5px; border: none; box-sizing: border-box; }
+        input { background: #333; color: white; }
+        button { background: #0088cc; color: white; font-weight: bold; cursor: pointer; }
+        button:hover { background: #006699; }
+        .user-item { background: #333; padding: 10px; margin-top: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+        .user-item button { width: auto; margin: 0; padding: 5px 15px; background: #28a745; }
+        #chatBox { height: 250px; background: #000; padding: 10px; overflow-y: auto; margin-top: 10px; font-family: monospace; font-size: 13px; }
+        .progress-bar { background: #444; border-radius: 5px; margin-top: 10px; height: 10px; width: 100%; overflow: hidden; display: none;}
+        .progress-fill { background: #28a745; height: 100%; width: 0%; transition: 0.1s; }
     </style>
 </head>
 <body>
 
-    <div id="login-screen">
-        <div class="login-box">
-            <h2>NexChat Login</h2>
-            <input type="text" id="myUsername" placeholder="Enter your Name" required>
-            <input type="text" id="myUID" placeholder="Enter a Unique ID (e.g. user1)" required>
-            <input type="password" id="secretKey" placeholder="Global E2EE Key (Password)" required>
-            <button onclick="login()">Enter Secure Chat</button>
-        </div>
+    <div class="panel">
+        <h2>1. Your Identity</h2>
+        <input type="text" id="deviceName" placeholder="Enter Device Name (e.g., Rahul's PC)">
+        <button onclick="registerDevice()">Go Online</button>
+
+        <h2 style="margin-top:30px;">2. Active Devices</h2>
+        <div id="usersList">Join to see devices...</div>
     </div>
 
-    <div id="app-layout">
+    <div class="panel" id="transferPanel" style="opacity: 0.5; pointer-events: none;">
+        <h2 id="connectionStatus">🔴 Not Connected</h2>
         
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <div>
-                    <h3 style="margin:0; font-size: 16px;" id="profileName">My Profile</h3>
-                    <small style="color: var(--primary);">🟢 Online</small>
-                </div>
-                <button onclick="logout()">Logout</button>
-            </div>
-            
-            <div class="search-container">
-                <input type="text" placeholder="🔍 Search user by ID...">
-            </div>
-
-            <div class="chat-list" id="chatList">
-                <div class="chat-item" onclick="openChat('user2', 'Rahul', 'Rahul is online')">
-                    <div class="avatar">R</div>
-                    <div>
-                        <div style="font-weight: bold;">Rahul</div>
-                        <div style="font-size: 12px; color: var(--text-muted);">Tap to chat</div>
-                    </div>
-                </div>
-                <div class="chat-item" onclick="openChat('user3', 'Aman', 'Last seen recently')">
-                    <div class="avatar">A</div>
-                    <div>
-                        <div style="font-weight: bold;">Aman</div>
-                        <div style="font-size: 12px; color: var(--text-muted);">Tap to chat</div>
-                    </div>
-                </div>
-            </div>
+        <div id="chatBox"></div>
+        
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <input type="text" id="msgInput" placeholder="Type a message...">
+            <button onclick="sendMessage()" style="width:30%;">Send</button>
         </div>
 
-        <div class="main-chat">
-            
-            <div id="empty-state">
-                <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="color: #334155; margin-bottom: 20px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                <h2>Welcome to NexChat</h2>
-                <p>Select a chat from the list to start securely messaging.</p>
-            </div>
-
-            <div id="active-chat">
-                <div class="chat-header">
-                    <div class="avatar" id="activeChatAvatar">?</div>
-                    <div>
-                        <h3 style="margin:0; font-size: 16px;" id="activeChatName">User Name</h3>
-                        <small style="color: var(--text-muted);" id="activeChatStatus">Online</small>
-                    </div>
-                </div>
-
-                <div class="messages-area" id="messagesArea">
-                    <div style="text-align: center; margin-bottom: 15px;">
-                        <span style="background: #1e293b; padding: 5px 12px; border-radius: 10px; font-size: 12px; color: var(--text-muted);">🔒 Messages are End-to-End Encrypted</span>
-                    </div>
-                    </div>
-
-                <div class="chat-input-area">
-                    <button title="Attach File" onclick="document.getElementById('fileUpload').click()">📎</button>
-                    <input type="file" id="fileUpload" style="display: none;" onchange="sendFile()">
-                    <input type="text" id="msgInput" placeholder="Type a message..." onkeypress="handleEnter(event)">
-                    <button class="send-btn" onclick="sendMessage()">➤</button>
-                </div>
-            </div>
-
-        </div>
+        <hr style="border-color:#444; margin: 20px 0;">
+        
+        <h3>Share Large File (P2P)</h3>
+        <input type="file" id="fileInput">
+        <button onclick="sendFile()">Send File Directly</button>
+        
+        <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+        <div id="fileStatus" style="font-size:12px; margin-top:5px; color:#aaa;"></div>
     </div>
 
 <script>
-    // System Variables
-    const socket = io('https://chat-api-zeta-ecru.vercel.app/'); // Node server URL
-    let currentUser = { name: '', uid: '', key: '' };
-    let currentChat = { name: '', uid: '' };
+    const socket = io('http://localhost:3000');
+    let myName = "";
+    let peerConnection;
+    let dataChannel;
+    let connectedPeerId = null;
 
-    // --- LOGIC: LOGIN & LOGOUT ---
-    function login() {
-        const name = document.getElementById('myUsername').value.trim();
-        const uid = document.getElementById('myUID').value.trim();
-        const key = document.getElementById('secretKey').value.trim();
+    // WebRTC Configuration (Public Google STUN servers help bypass standard home firewalls)
+    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-        if(!name || !uid || !key) return alert("All fields are required!");
-
-        currentUser = { name, uid, key };
-        
-        // Hide Login, Show App
-        document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('app-layout').style.display = 'flex';
-        document.getElementById('profileName').innerText = currentUser.name;
-
-        // Connect to Socket
-        socket.emit('user_online', currentUser.uid);
-        
-        // *Firebase Realtime DB Logic Here:* // fetchPendingOfflineMessagesFromFirebase(currentUser.uid);
+    // --- 1. SIGNALING & USERS LOGIC ---
+    function registerDevice() {
+        myName = document.getElementById('deviceName').value.trim();
+        if(!myName) return alert("Please enter a device name");
+        socket.emit('register_device', myName);
+        document.getElementById('deviceName').disabled = true;
     }
 
-    function logout() {
-        socket.emit('user_offline', currentUser.uid);
-        currentUser = { name: '', uid: '', key: '' };
-        
-        // Reset UI
-        document.getElementById('app-layout').style.display = 'none';
-        document.getElementById('login-screen').style.display = 'flex';
-        document.getElementById('active-chat').style.display = 'none';
-        document.getElementById('empty-state').style.display = 'flex';
+    socket.on('update_user_list', (users) => {
+        const listDiv = document.getElementById('usersList');
+        listDiv.innerHTML = '';
+        users.forEach(u => {
+            if(u.id !== socket.id) {
+                listDiv.innerHTML += `
+                    <div class="user-item">
+                        <span>📱 ${u.name}</span>
+                        <button onclick="sendRequest('${u.id}', '${u.name}')">Connect</button>
+                    </div>
+                `;
+            }
+        });
+    });
+
+    // --- 2. CONNECTION REQUEST LOGIC ---
+    function sendRequest(targetId, targetName) {
+        logChat(`Sent connection request to ${targetName}...`);
+        socket.emit('send_request', { targetId, senderName: myName });
     }
 
-    // --- LOGIC: OPEN PRIVATE CHAT ---
-    function openChat(uid, name, status) {
-        currentChat = { uid, name };
-        
-        // Switch UI from Empty State to Active Chat
-        document.getElementById('empty-state').style.display = 'none';
-        document.getElementById('active-chat').style.display = 'flex';
-        
-        // Update Header
-        document.getElementById('activeChatName').innerText = name;
-        document.getElementById('activeChatStatus').innerText = status;
-        document.getElementById('activeChatAvatar').innerText = name.charAt(0).toUpperCase();
-        
-        // Clear previous messages from view
-        const msgs = document.getElementById('messagesArea');
-        msgs.innerHTML = '<div style="text-align: center; margin-bottom: 15px;"><span style="background: #1e293b; padding: 5px 12px; border-radius: 10px; font-size: 12px; color: var(--text-muted);">🔒 Messages are End-to-End Encrypted</span></div>';
-    }
-
-    // --- LOGIC: SENDING DATA (E2EE) ---
-    function handleEnter(e) { if(e.key === 'Enter') sendMessage(); }
-
-    function sendMessage() {
-        const text = document.getElementById('msgInput').value.trim();
-        if(!text || !currentChat.uid) return;
-
-        const msgId = Date.now().toString();
-        
-        // 1. Encrypt Data Client-Side
-        const encryptedData = CryptoJS.AES.encrypt(text, currentUser.key).toString();
-        
-        // 2. Render on my screen
-        renderMessage(text, 'me', msgId, 'sent');
-        
-        // 3. Send to Node.js Server
-        socket.emit('send_private_msg', {
-            msgId: msgId,
-            senderId: currentUser.uid,
-            receiverId: currentChat.uid,
-            encryptedData: encryptedData,
-            type: 'text'
+    socket.on('incoming_request', (data) => {
+        const accept = confirm(`📱 ${data.senderName} wants to connect with your device. Accept?`);
+        socket.emit('request_response', { 
+            senderId: data.senderId, 
+            status: accept ? 'accepted' : 'denied',
+            responderName: myName
         });
 
-        document.getElementById('msgInput').value = '';
-    }
+        if(accept) {
+            connectedPeerId = data.senderId;
+            setupWebRTC(false); // Responder creates Answer later
+        }
+    });
 
-    function sendFile() {
-        const file = document.getElementById('fileUpload').files[0];
-        if(!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const base64 = e.target.result;
-            const encryptedFile = CryptoJS.AES.encrypt(base64, currentUser.key).toString();
-            const msgId = Date.now().toString();
-
-            renderMessage(`📁 Shared File: ${file.name}`, 'me', msgId, 'sent');
-
-            socket.emit('send_private_msg', {
-                msgId: msgId,
-                senderId: currentUser.uid,
-                receiverId: currentChat.uid,
-                encryptedData: encryptedFile,
-                type: 'file',
-                fileName: file.name
-            });
-        };
-        reader.readAsDataURL(file);
-    }
-
-    // --- LOGIC: RECEIVING DATA ---
-    socket.on('receive_private_msg', (payload) => {
-        // Sirf tabhi render karo agar main uss user ke sath chat open karke baitha hu
-        if(payload.senderId === currentChat.uid) {
-            try {
-                const bytes = CryptoJS.AES.decrypt(payload.encryptedData, currentUser.key);
-                const decryptedData = bytes.toString(CryptoJS.enc.Utf8);
-
-                if(!decryptedData) throw new Error("Key Mismatch");
-
-                if(payload.type === 'text') {
-                    renderMessage(decryptedData, 'other', payload.msgId);
-                } else if(payload.type === 'file') {
-                    const dlLink = `<br><a href="${decryptedData}" download="${payload.fileName}" style="color:var(--primary); text-decoration:none;">⬇️ Download File</a>`;
-                    renderMessage(`📁 Received File: ${payload.fileName} ${dlLink}`, 'other', payload.msgId);
-                }
-
-                // Send Blue Tick back
-                socket.emit('mark_as_read', { msgId: payload.msgId, senderId: payload.senderId });
-            } catch(e) {
-                renderMessage("⚠️ Encrypted message (Decryption Failed)", 'other', payload.msgId);
-            }
+    socket.on('request_status', (data) => {
+        if(data.status === 'accepted') {
+            logChat(`✅ ${data.responderName} accepted your request! Establishing P2P Tunnel...`);
+            connectedPeerId = data.responderId;
+            activatePanel(data.responderName);
+            setupWebRTC(true); // Requester creates the Offer
         } else {
-            // Agar main chat me nahi hu, notification dikhao ya chat list me counter badhao
-            console.log(`New message from ${payload.senderId}`);
+            logChat(`❌ ${data.responderName} denied your request.`);
         }
     });
 
-    // Update Ticks (Sent ✓ -> Read ✓✓)
-    socket.on('msg_status_update', ({ msgId, status }) => {
-        const tick = document.getElementById(`tick-${msgId}`);
-        if(tick) {
-            tick.className = `tick ${status}`;
-            if(status === 'saved_to_db') tick.innerText = '✓'; // Single tick (Offline)
-            if(status === 'read') {
-                tick.innerText = '✓✓'; // Double tick
-                tick.style.color = '#0f172a'; // Dark tick on light blue bubble
+    function activatePanel(peerName) {
+        document.getElementById('transferPanel').style.opacity = "1";
+        document.getElementById('transferPanel').style.pointerEvents = "auto";
+        document.getElementById('connectionStatus').innerText = `🟢 Connected to: ${peerName}`;
+    }
+
+    // --- 3. WEBRTC P2P TUNNEL SETUP ---
+    async function setupWebRTC(isInitiator) {
+        peerConnection = new RTCPeerConnection(rtcConfig);
+
+        // ICE Candidate Handling (Finding the best network path)
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('webrtc_ice_candidate', { target: connectedPeerId, candidate: event.candidate });
             }
+        };
+
+        if (isInitiator) {
+            // Create Data Channel for Chat/Files
+            dataChannel = peerConnection.createDataChannel('sendDataChannel');
+            setupDataChannel();
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            socket.emit('webrtc_offer', { target: connectedPeerId, offer: offer });
+        } else {
+            // Wait for data channel from initiator
+            peerConnection.ondatachannel = (event) => {
+                dataChannel = event.channel;
+                setupDataChannel();
+                activatePanel("Peer"); 
+            };
         }
+    }
+
+    // WebRTC Signaling Handlers
+    socket.on('webrtc_offer', async (data) => {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit('webrtc_answer', { target: data.senderId || connectedPeerId, answer: answer });
     });
 
-    function renderMessage(text, type, msgId, initialTick = '') {
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `msg ${type}`;
-        
-        let tickHtml = '';
-        if(type === 'me') {
-            tickHtml = `<span id="tick-${msgId}" class="tick ${initialTick}">✓</span>`;
-        }
+    socket.on('webrtc_answer', async (data) => {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+    });
 
-        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        msgDiv.innerHTML = `
-            ${text}
-            <div style="text-align: right; font-size: 10px; opacity: 0.7; margin-top: 5px;">
-                ${time} ${tickHtml}
-            </div>
-        `;
+    socket.on('webrtc_ice_candidate', async (data) => {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+    });
+
+    // --- 4. DATA CHANNEL (CHAT & FILES) ---
+    function setupDataChannel() {
+        dataChannel.onopen = () => logChat("🚀 P2P Tunnel Opened! You can now share files at max speed.");
+        dataChannel.onclose = () => logChat("🔌 P2P Tunnel Closed.");
         
-        const area = document.getElementById('messagesArea');
-        area.appendChild(msgDiv);
-        area.scrollTop = area.scrollHeight;
+        // Handling incoming data
+        dataChannel.onmessage = (event) => {
+            if (typeof event.data === 'string') {
+                if (event.data.startsWith('META:')) {
+                    // Incoming file metadata
+                    const meta = JSON.parse(event.data.replace('META:', ''));
+                    receiveFileStart(meta);
+                } else {
+                    // Normal Chat Message
+                    logChat(`[Peer]: ${event.data}`);
+                }
+            } else {
+                // Incoming File Chunk (Binary Data)
+                receiveFileChunk(event.data);
+            }
+        };
+    }
+
+    function sendMessage() {
+        const msg = document.getElementById('msgInput').value;
+        if(msg && dataChannel && dataChannel.readyState === 'open') {
+            dataChannel.send(msg);
+            logChat(`[Me]: ${msg}`);
+            document.getElementById('msgInput').value = '';
+        }
+    }
+
+    // --- 5. ULTRA-FAST LARGE FILE CHUNKING LOGIC ---
+    // Chunk size: 64 KB (Best for WebRTC stability)
+    const CHUNK_SIZE = 64 * 1024; 
+    
+    function sendFile() {
+        const file = document.getElementById('fileInput').files[0];
+        if(!file) return alert("Select a file!");
+        if(dataChannel.readyState !== 'open') return alert("P2P not connected!");
+
+        // 1. Send Metadata first
+        dataChannel.send(`META:${JSON.stringify({ name: file.name, size: file.size, type: file.type })}`);
+        
+        // 2. Start reading & sending chunks
+        let offset = 0;
+        const reader = new FileReader();
+        const progressFill = document.getElementById('progressFill');
+        document.getElementById('progressBar').style.display = 'block';
+
+        reader.onload = (e) => {
+            dataChannel.send(e.target.result); // Send chunk
+            offset += e.target.result.byteLength;
+            
+            // Update UI
+            const percent = (offset / file.size) * 100;
+            progressFill.style.width = `${percent}%`;
+            document.getElementById('fileStatus').innerText = `Sending: ${(offset/1024/1024).toFixed(2)} MB / ${(file.size/1024/1024).toFixed(2)} MB`;
+
+            if (offset < file.size) {
+                readSlice(offset); // Read next chunk
+            } else {
+                logChat(`✅ File Sent Successfully: ${file.name}`);
+                setTimeout(() => document.getElementById('progressBar').style.display = 'none', 2000);
+            }
+        };
+
+        const readSlice = (o) => {
+            const slice = file.slice(offset, o + CHUNK_SIZE);
+            reader.readAsArrayBuffer(slice);
+        };
+        readSlice(0);
+    }
+
+    // Receiving File State
+    let incomingFile = { meta: null, buffers: [], receivedSize: 0 };
+
+    function receiveFileStart(meta) {
+        incomingFile.meta = meta;
+        incomingFile.buffers = [];
+        incomingFile.receivedSize = 0;
+        logChat(`📥 Incoming file: ${meta.name} (${(meta.size/1024/1024).toFixed(2)} MB)...`);
+    }
+
+    function receiveFileChunk(chunk) {
+        incomingFile.buffers.push(chunk);
+        incomingFile.receivedSize += chunk.byteLength;
+
+        if (incomingFile.receivedSize === incomingFile.meta.size) {
+            // File is complete! Assemble and download.
+            const blob = new Blob(incomingFile.buffers, { type: incomingFile.meta.type });
+            const url = URL.createObjectURL(blob);
+            
+            logChat(`✅ File Received! <a href="${url}" download="${incomingFile.meta.name}" style="color:#00ff00;">Download ${incomingFile.meta.name}</a>`);
+            
+            // Reset state
+            incomingFile = { meta: null, buffers: [], receivedSize: 0 };
+        }
+    }
+
+    function logChat(msg) {
+        const box = document.getElementById('chatBox');
+        box.innerHTML += `<div>${msg}</div>`;
+        box.scrollTop = box.scrollHeight;
     }
 </script>
+
 </body>
 </html>
